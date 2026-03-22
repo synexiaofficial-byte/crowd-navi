@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リアル混雑ナビ — 今行くべきか、1秒でわかる。</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: rgba(255,255,255,0.07);
+    --text: #f0f4ff;
+    --text-muted: #6b7a99;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --green: #00e676;
+    --yellow: #ffd600;
+    --red: #ff1744;
+    --green-bg: rgba(0,230,118,0.08);
+    --yellow-bg: rgba(255,214,0,0.08);
+    --red-bg: rgba(255,23,68,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* === GRID NOISE BG === */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* === HEADER === */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+    background: rgba(10,14,26,0.85);
+    position: sticky;
+    top: 0;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    animation: pulse-icon 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-icon {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,229,255,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(0,229,255,0); }
+  }
+
+  .logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 1px;
+  }
+
+  .beta-badge {
+    background: rgba(124,58,237,0.2);
+    border: 1px solid rgba(124,58,237,0.4);
+    color: #a78bfa;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    color: var(--green);
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  /* === HERO === */
+  .hero {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 80px 40px 60px;
+    overflow: hidden;
+  }
+
+  .hero-glow {
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(0,229,255,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.2);
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    color: var(--accent);
+    margin-bottom: 24px;
+    letter-spacing: 0.5px;
+  }
+
+  .hero h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(52px, 8vw, 96px);
+    line-height: 1;
+    letter-spacing: 4px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #fff 40%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero p {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 480px;
+    margin: 0 auto 12px;
+    line-height: 1.8;
+  }
+
+  .hero-area-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--accent2);
+    font-weight: 500;
+    margin-top: 4px;
+  }
+
+  /* === STATS BAR === */
+  .stats-bar {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin: 0 40px 48px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .stat-item {
+    flex: 1;
+    padding: 20px 24px;
+    text-align: center;
+    border-right: 1px solid var(--border);
+  }
+
+  .stat-item:last-child { border-right: none; }
+
+  .stat-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* === SEARCH / FILTER === */
+  .controls {
+    position: relative;
+    z-index: 1;
+    padding: 0 40px 32px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+  }
+
+  .search-box input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px 12px 40px;
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-box input:focus {
+    border-color: var(--accent);
+  }
+
+  .search-box input::placeholder { color: var(--text-muted); }
+
+  .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 16px;
+  }
+
+  .filter-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 18px;
+    color: var(--text-muted);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .filter-btn:hover, .filter-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,229,255,0.05);
+  }
+
+  .filter-btn.green.active { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+  .filter-btn.yellow.active { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-bg); }
+  .filter-btn.red.active { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+
+  /* === CARDS GRID === */
+  .section-label {
+    position: relative;
+    z-index: 1;
+    padding: 0 40px 16px;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .cards-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 0 40px 40px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(0,229,255,0.25);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  .card-status-bar {
+    height: 4px;
+    width: 100%;
+  }
+
+  .card-status-bar.green { background: linear-gradient(90deg, var(--green), #69f0ae); }
+  .card-status-bar.yellow { background: linear-gradient(90deg, var(--yellow), #ffff00); }
+  .card-status-bar.red { background: linear-gradient(90deg, var(--red), #ff6d00); }
+
+  .card-body {
+    padding: 20px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .card-icon {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .crowd-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .crowd-badge.green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(0,230,118,0.2); }
+  .crowd-badge.yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(255,214,0,0.2); }
+  .crowd-badge.red { background: var(--red-bg); color: var(--red); border: 1px solid rgba(255,23,68,0.2); }
+
+  .crowd-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .crowd-badge.green .crowd-dot { animation: blink 1.5s ease-in-out infinite; }
+  .crowd-badge.red .crowd-dot { animation: blink 0.8s ease-in-out infinite; }
+
+  .card-name {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+
+  .card-category {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+
+  .card-metrics {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .metric {
+    flex: 1;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .metric-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+
+  .metric-value {
+    font-size: 20px;
+    font-weight: 900;
+    font-family: 'Space Mono', monospace;
+    line-height: 1;
+  }
+
+  .metric-value.green { color: var(--green); }
+  .metric-value.yellow { color: var(--yellow); }
+  .metric-value.red { color: var(--red); }
+
+  .metric-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  /* Capacity bar */
+  .capacity-bar-wrap {
+    margin-bottom: 14px;
+  }
+
+  .capacity-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 6px;
+  }
+
+  .capacity-track {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .capacity-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+
+  .capacity-fill.green { background: linear-gradient(90deg, var(--green), #69f0ae); }
+  .capacity-fill.yellow { background: linear-gradient(90deg, var(--yellow), #ffff00); }
+  .capacity-fill.red { background: linear-gradient(90deg, var(--red), #ff6d00); }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .updated-time {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .card-address {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* === BETA BANNER === */
+  .beta-banner {
+    position: relative;
+    z-index: 1;
+    margin: 0 40px 32px;
+    background: rgba(124,58,237,0.08);
+    border: 1px solid rgba(124,58,237,0.25);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 14px;
+    color: #c4b5fd;
+  }
+
+  .beta-icon { font-size: 20px; }
+
+  /* === FOOTER === */
+  footer {
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 32px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  /* === LOADING SHIMMER === */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* === ANIMATIONS === */
+  .card {
+    animation: fadeUp 0.4s ease forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.10s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+  .card:nth-child(4) { animation-delay: 0.20s; }
+  .card:nth-child(5) { animation-delay: 0.25s; }
+  .card:nth-child(6) { animation-delay: 0.30s; }
+
+  /* === SCROLLBAR === */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 768px) {
+    header { padding: 16px 20px; }
+    .hero { padding: 48px 20px 40px; }
+    .stats-bar { margin: 0 20px 32px; flex-wrap: wrap; }
+    .stat-item { flex: 1 1 45%; border-right: none; border-bottom: 1px solid var(--border); }
+    .controls { padding: 0 20px 24px; }
+    .cards-grid { padding: 0 20px 32px; }
+    .section-label { padding: 0 20px 12px; }
+    .beta-banner { margin: 0 20px 24px; }
+    footer { padding: 24px 20px; flex-direction: column; gap: 8px; text-align: center; }
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">📍</div>
+    <div>
+      <div class="logo-text">リアル混雑ナビ</div>
+      <div class="logo-sub">REAL-TIME CROWD NAVI</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-indicator">
+      <span class="live-dot"></span>
+      LIVE
+    </div>
+    <div class="beta-badge">β BETA</div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-tag">
+    <span class="live-dot"></span>
+    宮崎エリア リアルタイム配信中
+  </div>
+  <h1>今行くべきか、<br>1秒でわかる。</h1>
+  <p>全国の商業施設・観光地の混雑状況をリアルタイムで可視化。行く前に「空いているか」「混んでいるか」を瞬時に判断できます。</p>
+  <div class="hero-area-tag">📍 宮崎県を中心に展開中</div>
+</section>
+
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-num" id="stat-shops">8</div>
+    <div class="stat-label">提携店舗数</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num green-text" id="stat-open" style="color:var(--green)">3</div>
+    <div class="stat-label">🟢 空いてる</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" id="stat-normal" style="color:var(--yellow)">3</div>
+    <div class="stat-label">🟡 普通</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" id="stat-busy" style="color:var(--red)">2</div>
+    <div class="stat-label">🔴 混雑</div>
+  </div>
+</div>
+
+<div class="beta-banner">
+  <span class="beta-icon">🚧</span>
+  <span>現在 <strong>β版</strong> として一部機能を公開しています。対応エリアは順次拡大予定です。カメラ設置・AI連携にご興味のある店舗様はお問い合わせください。</span>
+</div>
+
+<div class="controls">
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="店舗名・エリアで検索..." oninput="filterCards()">
+  </div>
+  <button class="filter-btn" onclick="setFilter('all')" id="btn-all">すべて</button>
+  <button class="filter-btn green" onclick="setFilter('green')" id="btn-green">🟢 空いてる</button>
+  <button class="filter-btn yellow" onclick="setFilter('yellow')" id="btn-yellow">🟡 普通</button>
+  <button class="filter-btn red" onclick="setFilter('red')" id="btn-red">🔴 混雑</button>
+</div>
+
+<div class="section-label">提携店舗一覧</div>
+
+<div class="cards-grid" id="cardsGrid"></div>
+
+<footer>
+  <div>© 2025 リアル混雑ナビ — Miyazaki, Japan</div>
+  <div>データはAIカメラ解析により <span id="footerTime"></span> 更新</div>
+</footer>
+
+<script>
+const shops = [
+  {
+    id: 1,
+    name: "イオンモール宮崎",
+    category: "ショッピングモール",
+    icon: "🏬",
+    address: "宮崎市大坪西1丁目",
+    status: "yellow",
+    label: "普通",
+    count: 847,
+    capacity: 1500,
+    updatedMin: 1,
+  },
+  {
+    id: 2,
+    name: "宮崎神宮",
+    category: "観光地・神社",
+    icon: "⛩️",
+    address: "宮崎市神宮2丁目",
+    status: "green",
+    label: "空いてる",
+    count: 42,
+    capacity: 500,
+    updatedMin: 2,
+  },
+  {
+    id: 3,
+    name: "道の駅 フェニックス",
+    category: "道の駅・観光",
+    icon: "🌴",
+    address: "宮崎市内海",
+    status: "red",
+    label: "混雑",
+    count: 312,
+    capacity: 350,
+    updatedMin: 1,
+  },
+  {
+    id: 4,
+    name: "ニシタチ食堂街",
+    category: "飲食エリア",
+    icon: "🍜",
+    address: "宮崎市橘通西2丁目",
+    status: "red",
+    label: "混雑",
+    count: 178,
+    capacity: 200,
+    updatedMin: 3,
+  },
+  {
+    id: 5,
+    name: "宮崎県立総合博物館",
+    category: "博物館・文化施設",
+    icon: "🏛️",
+    address: "宮崎市神宮2丁目",
+    status: "green",
+    label: "空いてる",
+    count: 18,
+    capacity: 300,
+    updatedMin: 4,
+  },
+  {
+    id: 6,
+    name: "サンフレッシュ宮崎",
+    category: "スーパーマーケット",
+    icon: "🛒",
+    address: "宮崎市橘通東4丁目",
+    status: "yellow",
+    label: "普通",
+    count: 63,
+    capacity: 120,
+    updatedMin: 1,
+  },
+  {
+    id: 7,
+    name: "青島海水浴場",
+    category: "観光地・海岸",
+    icon: "🏖️",
+    address: "宮崎市青島",
+    status: "green",
+    label: "空いてる",
+    count: 29,
+    capacity: 800,
+    updatedMin: 2,
+  },
+  {
+    id: 8,
+    name: "宮交シティ",
+    category: "ショッピングセンター",
+    icon: "🛍️",
+    address: "宮崎市錦本町",
+    status: "yellow",
+    label: "普通",
+    count: 231,
+    capacity: 600,
+    updatedMin: 1,
+  },
+];
+
+let currentFilter = 'all';
+
+function getStatusColor(status) {
+  if (status === 'green') return 'green';
+  if (status === 'yellow') return 'yellow';
+  return 'red';
+}
+
+function getCapacityPct(count, capacity) {
+  return Math.min(100, Math.round((count / capacity) * 100));
+}
+
+function renderCards() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const grid = document.getElementById('cardsGrid');
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('footerTime').textContent = timeStr;
+
+  const filtered = shops.filter(s => {
+    const matchFilter = currentFilter === 'all' || s.status === currentFilter;
+    const matchSearch = s.name.toLowerCase().includes(search) || s.address.toLowerCase().includes(search) || s.category.toLowerCase().includes(search);
+    return matchFilter && matchSearch;
+  });
+
+  grid.innerHTML = '';
+
+  filtered.forEach(shop => {
+    const pct = getCapacityPct(shop.count, shop.capacity);
+    const color = getStatusColor(shop.status);
+    const updatedText = shop.updatedMin === 1 ? '1分前' : `${shop.updatedMin}分前`;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.status = shop.status;
+    card.innerHTML = `
+      <div class="card-status-bar ${color}"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-icon">${shop.icon}</div>
+          <div class="crowd-badge ${color}">
+            <span class="crowd-dot"></span>
+            ${shop.label}
+          </div>
+        </div>
+        <div class="card-name">${shop.name}</div>
+        <div class="card-category">${shop.category}</div>
+        <div class="card-metrics">
+          <div class="metric">
+            <div class="metric-label">現在人数</div>
+            <div class="metric-value ${color}">${shop.count.toLocaleString()}</div>
+            <div class="metric-sub">人</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">混雑率</div>
+            <div class="metric-value ${color}">${pct}%</div>
+            <div class="metric-sub">/ 100%</div>
+          </div>
+        </div>
+        <div class="capacity-bar-wrap">
+          <div class="capacity-label">
+            <span>混雑度</span>
+            <span>${shop.count} / ${shop.capacity}人</span>
+          </div>
+          <div class="capacity-track">
+            <div class="capacity-fill ${color}" style="width:${pct}%"></div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="updated-time">🕐 ${updatedText}更新</div>
+          <div class="card-address">📍 ${shop.address}</div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // Update stats
+  const green = shops.filter(s => s.status === 'green').length;
+  const yellow = shops.filter(s => s.status === 'yellow').length;
+  const red = shops.filter(s => s.status === 'red').length;
+  document.getElementById('stat-shops').textContent = shops.length;
+  document.getElementById('stat-open').textContent = green;
+  document.getElementById('stat-normal').textContent = yellow;
+  document.getElementById('stat-busy').textContent = red;
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('btn-' + f);
+  if (btn) btn.classList.add('active');
+  renderCards();
+}
+
+function filterCards() {
+  renderCards();
+}
+
+// Simulate live updates
+function simulateLive() {
+  shops.forEach(shop => {
+    const delta = Math.floor(Math.random() * 20) - 10;
+    shop.count = Math.max(0, Math.min(shop.capacity, shop.count + delta));
+    const pct = shop.count / shop.capacity;
+    if (pct < 0.35) { shop.status = 'green'; shop.label = '空いてる'; }
+    else if (pct < 0.70) { shop.status = 'yellow'; shop.label = '普通'; }
+    else { shop.status = 'red'; shop.label = '混雑'; }
+    shop.updatedMin = 1;
+  });
+  renderCards();
+}
+
+setFilter('all');
+setInterval(simulateLive, 8000);
+</script>
+</body>
+</html>
